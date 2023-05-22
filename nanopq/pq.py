@@ -94,7 +94,7 @@ class PQ(object):
                 if self.verbose:
                     print("Training the subspace: {} / {}".format(m, self.M))
                 vecs_sub = vecs[:, m * self.Ds : (m + 1) * self.Ds]
-                km = KMeans(n_clusters=self.Ks, random_state=0, n_init="auto")
+                km = KMeans(n_clusters=self.Ks, random_state=0)
                 future = executor.submit(km.fit, vecs_sub)
                 futures.append(future)
             for m, f in enumerate(futures):
