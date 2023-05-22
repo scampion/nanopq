@@ -1,3 +1,5 @@
+from concurrent.futures import ThreadPoolExecutor
+
 import numpy as np
 from scipy.cluster.vq import kmeans2, vq
 
@@ -85,12 +87,17 @@ class PQ(object):
 
         # [m][ks][ds]: m-th subspace, ks-the codeword, ds-th dim
         self.codewords = np.zeros((self.M, self.Ks, self.Ds), dtype=np.float32)
-        for m in range(self.M):
-            if self.verbose:
-                print("Training the subspace: {} / {}".format(m, self.M))
-            vecs_sub = vecs[:, m * self.Ds : (m + 1) * self.Ds]
-            self.codewords[m], _ = kmeans2(vecs_sub, self.Ks, iter=iter, minit="points")
-
+        futures = []
+        with ThreadPoolExecutor(max_workers=self.M) as executor:
+            for m in range(self.M):
+                if self.verbose:
+                    print("Training the subspace: {} / {}".format(m, self.M))
+                vecs_sub = vecs[:, m * self.Ds : (m + 1) * self.Ds]
+                # self.codewords[m], _ = kmeans2(vecs_sub, self.Ks, iter=iter, minit="points")
+                future = executor.submit(kmeans2, vecs_sub, self.Ks, iter=iter, minit="points")
+                futures.append(future)
+            for m, future in enumerate(futures):
+                self.codewords[m], _ = future.result()
         return self
 
     def encode(self, vecs):
@@ -110,12 +117,17 @@ class PQ(object):
 
         # codes[n][m] : code of n-th vec, m-th subspace
         codes = np.empty((N, self.M), dtype=self.code_dtype)
-        for m in range(self.M):
-            if self.verbose:
-                print("Encoding the subspace: {} / {}".format(m, self.M))
-            vecs_sub = vecs[:, m * self.Ds : (m + 1) * self.Ds]
-            codes[:, m], _ = vq(vecs_sub, self.codewords[m])
-
+        futures = []
+        with ThreadPoolExecutor(max_workers=self.M) as executor:
+            for m in range(self.M):
+                if self.verbose:
+                    print("Encoding the subspace: {} / {}".format(m, self.M))
+                vecs_sub = vecs[:, m * self.Ds : (m + 1) * self.Ds]
+                #codes[:, m], _ = vq(vecs_sub, self.codewords[m])
+                future = executor.submit(vq, vecs_sub, self.codewords[m])
+                futures.append(future)
+            for m, future in enumerate(futures):
+                codes[:, m], _ = future.result()
         return codes
 
     def decode(self, codes):
