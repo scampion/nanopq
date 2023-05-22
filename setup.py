@@ -19,5 +19,5 @@ setup(
     url="https://github.com/matsui528/nanopq",
     license="MIT",
     packages=find_packages(exclude=("tests", "docs")),
-    install_requires=["numpy", "scipy"],
+    install_requires=["numpy", "scikit-learn"],
 )

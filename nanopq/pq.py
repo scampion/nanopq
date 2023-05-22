@@ -1,5 +1,7 @@
+import multiprocessing
+
 import numpy as np
-from scipy.cluster.vq import kmeans2, vq
+from sklearn.cluster import KMeans
 
 
 class PQ(object):
@@ -89,7 +91,8 @@ class PQ(object):
             if self.verbose:
                 print("Training the subspace: {} / {}".format(m, self.M))
             vecs_sub = vecs[:, m * self.Ds : (m + 1) * self.Ds]
-            self.codewords[m], _ = kmeans2(vecs_sub, self.Ks, iter=iter, minit="points")
+            kmeans = KMeans(n_clusters=self.Ks, random_state=0, n_init="auto").fit(vecs_sub)
+            self.codewords[m] = kmeans.cluster_centers_
 
         return self
 
@@ -114,7 +117,10 @@ class PQ(object):
             if self.verbose:
                 print("Encoding the subspace: {} / {}".format(m, self.M))
             vecs_sub = vecs[:, m * self.Ds : (m + 1) * self.Ds]
-            codes[:, m], _ = vq(vecs_sub, self.codewords[m])
+            kmeans = KMeans(n_clusters=len(self.codewords[m]))
+            kmeans._n_threads = multiprocessing.cpu_count()
+            kmeans.cluster_centers_ = self.codewords[m]
+            codes[:, m] = kmeans.predict(vecs_sub)
 
         return codes
 
