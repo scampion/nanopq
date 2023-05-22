@@ -91,7 +91,7 @@ class PQ(object):
             if self.verbose:
                 print("Training the subspace: {} / {}".format(m, self.M))
             vecs_sub = vecs[:, m * self.Ds : (m + 1) * self.Ds]
-            kmeans = KMeans(n_clusters=self.Ks, random_state=0, n_init="auto").fit(vecs_sub)
+            kmeans = KMeans(n_clusters=self.Ks, random_state=0).fit(vecs_sub)
             self.codewords[m] = kmeans.cluster_centers_
 
         return self
