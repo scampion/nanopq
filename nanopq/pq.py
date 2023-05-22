@@ -1,4 +1,5 @@
 import multiprocessing
+from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 from sklearn.cluster import KMeans
@@ -87,13 +88,18 @@ class PQ(object):
 
         # [m][ks][ds]: m-th subspace, ks-the codeword, ds-th dim
         self.codewords = np.zeros((self.M, self.Ks, self.Ds), dtype=np.float32)
-        for m in range(self.M):
-            if self.verbose:
-                print("Training the subspace: {} / {}".format(m, self.M))
-            vecs_sub = vecs[:, m * self.Ds : (m + 1) * self.Ds]
-            kmeans = KMeans(n_clusters=self.Ks, random_state=0, n_init="auto").fit(vecs_sub)
-            self.codewords[m] = kmeans.cluster_centers_
-
+        futures = []
+        with ThreadPoolExecutor(max_workers=self.M) as executor:
+            for m in range(self.M):
+                if self.verbose:
+                    print("Training the subspace: {} / {}".format(m, self.M))
+                vecs_sub = vecs[:, m * self.Ds : (m + 1) * self.Ds]
+                km = KMeans(n_clusters=self.Ks, random_state=0, n_init="auto")
+                future = executor.submit(km.fit, vecs_sub)
+                futures.append(future)
+            for m, f in enumerate(futures):
+                kmeans = f.result()
+                self.codewords[m] = kmeans.cluster_centers_
         return self
 
     def encode(self, vecs):
@@ -113,15 +119,19 @@ class PQ(object):
 
         # codes[n][m] : code of n-th vec, m-th subspace
         codes = np.empty((N, self.M), dtype=self.code_dtype)
-        for m in range(self.M):
-            if self.verbose:
-                print("Encoding the subspace: {} / {}".format(m, self.M))
-            vecs_sub = vecs[:, m * self.Ds : (m + 1) * self.Ds]
-            kmeans = KMeans(n_clusters=len(self.codewords[m]))
-            kmeans._n_threads = multiprocessing.cpu_count()
-            kmeans.cluster_centers_ = self.codewords[m]
-            codes[:, m] = kmeans.predict(vecs_sub)
-
+        futures = []
+        with ThreadPoolExecutor(max_workers=self.M) as executor:
+            for m in range(self.M):
+                if self.verbose:
+                    print("Encoding the subspace: {} / {}".format(m, self.M))
+                vecs_sub = vecs[:, m * self.Ds : (m + 1) * self.Ds]
+                kmeans = KMeans(n_clusters=len(self.codewords[m]))
+                kmeans._n_threads = multiprocessing.cpu_count()
+                kmeans.cluster_centers_ = self.codewords[m]
+                future = executor.submit(kmeans.predict, vecs_sub)
+                futures.append(future)
+            for m, f in enumerate(futures):
+                codes[:, m] = f.result()
         return codes
 
     def decode(self, codes):
